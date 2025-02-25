@@ -1,19 +1,41 @@
-import type { MetaFunction } from "@remix-run/node";
-import { Link } from "@remix-run/react";
- 
+import type { ActionFunctionArgs, MetaFunction } from '@remix-run/node';
+import { Form, Link, useLoaderData } from '@remix-run/react';
+import { todos } from '~/lib/db.server';
+
 export const meta: MetaFunction = () => {
   return [
-    { title: "Todo App" },
+    { title: 'Todo App' },
     {
-      name: "description",
-      content: "A minimalistic todo app built with Remix.",
+      name: 'description',
+      content: 'A minimalistic todo app built with Remix.',
     },
   ];
 };
- 
+
+// export async function loader() {
+//   return new Response(JSON.stringify({ task: await todos.read() }), {
+//     headers: {
+//       "Content-Type": "applications/json; charset=utf-8",
+//     },
+//   });
+// }
+
+export const loader = async () => {
+  return { tasks: await todos.read() };
+};
+
+export const action = async ({ request }: ActionFunctionArgs) => {
+  const formData = await request.formData();
+
+  const { description } = Object.fromEntries(formData);
+  await todos.create(description as string);
+
+  return {ok: true};
+};
+
 export default function Home() {
-  const tasks: string[] = [];
- 
+  const { tasks } = useLoaderData<typeof loader>();
+
   return (
     <div className="flex flex-1 flex-col md:mx-auto md:w-[720px]">
       <header className="mb-12 flex items-center justify-between">
@@ -26,9 +48,9 @@ export default function Home() {
           <option>Dark</option>
         </select>
       </header>
- 
+
       <main className="flex-1 space-y-8">
-        <form className="rounded-full border border-gray-200 bg-white/90 shadow-md dark:border-gray-700 dark:bg-gray-900">
+        <Form method='post' className="rounded-full border border-gray-200 bg-white/90 shadow-md dark:border-gray-700 dark:bg-gray-900">
           <fieldset className="flex items-center gap-2 p-2 text-sm">
             <input
               type="text"
@@ -41,24 +63,24 @@ export default function Home() {
               Add
             </button>
           </fieldset>
-        </form>
- 
+        </Form>
+
         <div className="rounded-3xl border border-gray-200 bg-white/90 px-4 py-2 dark:border-gray-700 dark:bg-gray-900">
           {tasks.length > 0 ? (
             <ul>
               {tasks.map((task) => (
-                <li key={task}>{task}</li>
+                <li key={task.id}>{task.description}</li>
               ))}
             </ul>
           ) : (
             <p className="text-center leading-7">No tasks available</p>
           )}
         </div>
- 
+
         <div className="rounded-3xl border border-gray-200 bg-white/90 px-4 py-2 dark:border-gray-700 dark:bg-gray-900">
           <div className="flex items-center justify-between gap-4 text-sm">
             <p className="text-center leading-7">
-              {tasks.length} {tasks.length === 1 ? "item" : "items"} left
+              {tasks.length} {tasks.length === 1 ? 'item' : 'items'} left
             </p>
             <div className="flex items-center gap-4">
               <button className="text-red-400 transition hover:text-red-600">
@@ -70,7 +92,7 @@ export default function Home() {
             </div>
           </div>
         </div>
- 
+
         <div className="rounded-3xl border border-gray-200 bg-white/90 px-4 py-2 dark:border-gray-700 dark:bg-gray-900">
           <div className="flex items-center justify-center gap-12 text-sm">
             <button
@@ -94,10 +116,10 @@ export default function Home() {
           </div>
         </div>
       </main>
- 
+
       <footer className="mt-12">
         <p className="text-center text-sm leading-loose">
-          Built by{" "}
+          Built by{' '}
           <Link
             to="https://udohjeremiah.com"
             target="_blank"
@@ -106,7 +128,7 @@ export default function Home() {
           >
             Udoh
           </Link>
-          . The source code is available on{" "}
+          . The source code is available on{' '}
           <Link
             to="https://github.com/udohjeremiah/remix-todo-app"
             target="_blank"
