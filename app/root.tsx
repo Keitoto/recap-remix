@@ -1,20 +1,32 @@
 import {
+  json,
   Links,
   Meta,
   Outlet,
   Scripts,
   ScrollRestoration,
-} from "@remix-run/react";
- 
-import "./tailwind.css";
- 
+} from '@remix-run/react';
+
+import './tailwind.css';
+import { LoaderFunctionArgs } from '@remix-run/node';
+import { parseTheme } from '~/lib/theme-cookie.server';
+import { ThemeScript, useTheme } from '~/components/ThemeScript';
+
+export async function loader({ request }: LoaderFunctionArgs) {
+  const theme = await parseTheme(request);
+
+  return Response.json({ theme }, { headers: { Vary: 'Cookie' } });
+}
+
 export function Layout({ children }: { children: React.ReactNode }) {
+  const theme = useTheme() === 'dark' ? 'dark' : '';
   return (
     <html
       lang="en"
-      className="bg-white/90 font-system antialiased dark:bg-gray-900"
+      className={`bg-white/90 font-system antialiased dark:bg-gray-900 ${theme}`}
     >
       <head>
+        <ThemeScript />
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <Meta />
@@ -28,7 +40,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     </html>
   );
 }
- 
+
 export default function App() {
   return <Outlet />;
 }

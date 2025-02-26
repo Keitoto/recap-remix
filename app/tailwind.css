@@ -6,3 +6,5 @@
     Twemoji Mozilla, Segoe UI Emoji, Segoe UI Symbol, Noto Color Emoji,
     EmojiOne Color, Android Emoji;
 }
+
+@custom-variant dark (&:where(.dark, .dark *));
