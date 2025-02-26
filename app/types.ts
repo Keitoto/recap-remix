@@ -2,7 +2,7 @@ export interface Item {
   id: string;
   description: string;
   isCompleted: boolean;
-  createdAt?: Date;
+  createdAt: Date;
   completedAt?: Date;
   isEditing?: boolean;
 }
@@ -18,3 +18,5 @@ export interface TodoActions {
   clearCompleted: () => Promise<Item[]>;
   deleteAll: () => Promise<Item[]>;
 }
+
+export type View = "all" | "active" | "completed";

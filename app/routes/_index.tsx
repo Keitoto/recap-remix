@@ -1,6 +1,15 @@
 import type { ActionFunctionArgs, MetaFunction } from '@remix-run/node';
-import { Form, Link, useLoaderData } from '@remix-run/react';
+import {
+  Form,
+  Link,
+  useFetcher,
+  useLoaderData,
+  useSearchParams,
+} from '@remix-run/react';
+import { TodoActions } from '~/components/TodoActions';
+import { TodoList } from '~/components/Todolist';
 import { todos } from '~/lib/db.server';
+import { Item, View } from '~/types';
 
 export const meta: MetaFunction = () => {
   return [
@@ -12,29 +21,66 @@ export const meta: MetaFunction = () => {
   ];
 };
 
-// export async function loader() {
-//   return new Response(JSON.stringify({ task: await todos.read() }), {
-//     headers: {
-//       "Content-Type": "applications/json; charset=utf-8",
-//     },
-//   });
-// }
-
 export const loader = async () => {
   return { tasks: await todos.read() };
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   const formData = await request.formData();
+  const { intent, ...values } = Object.fromEntries(formData);
 
-  const { description } = Object.fromEntries(formData);
-  await todos.create(description as string);
-
-  return {ok: true};
+  switch (intent) {
+    case 'create task': {
+      const { description } = values;
+      await todos.create(description as string);
+      break;
+    }
+    case 'toggle completion': {
+      const { id, isCompleted } = values;
+      await todos.update(id as string, {
+        isCompleted: !JSON.parse(isCompleted as string),
+        completedAt: isCompleted ? new Date() : undefined,
+      });
+      break;
+    }
+    case 'edit task': {
+      const { id } = values;
+      await todos.update(id as string, { isEditing: true });
+      break;
+    }
+    case 'save task': {
+      const { id, description } = values;
+      await todos.update(id as string, {
+        description: description as string,
+        isEditing: false,
+      });
+      break;
+    }
+    case 'delete task': {
+      const { id } = values;
+      await todos.delete(id as string);
+      break;
+    }
+    case 'clear completed': {
+      await todos.clearCompleted();
+      break;
+    }
+    case 'delete all': {
+      await todos.deleteAll();
+      break;
+    }
+    default: {
+      throw new Response('Unknown intent', { status: 400 });
+    }
+  }
+  return { ok: true };
 };
 
 export default function Home() {
   const { tasks } = useLoaderData<typeof loader>();
+  const fetcher = useFetcher();
+  const [searchParams] = useSearchParams();
+  const view = searchParams.get('view') || 'all';
 
   return (
     <div className="flex flex-1 flex-col md:mx-auto md:w-[720px]">
@@ -50,7 +96,10 @@ export default function Home() {
       </header>
 
       <main className="flex-1 space-y-8">
-        <Form method='post' className="rounded-full border border-gray-200 bg-white/90 shadow-md dark:border-gray-700 dark:bg-gray-900">
+        <fetcher.Form
+          method="post"
+          className="rounded-full border border-gray-200 bg-white/90 shadow-md dark:border-gray-700 dark:bg-gray-900"
+        >
           <fieldset className="flex items-center gap-2 p-2 text-sm">
             <input
               type="text"
@@ -59,76 +108,68 @@ export default function Home() {
               required
               className="flex-1 rounded-full border-2 border-gray-200 px-3 py-2 text-sm font-bold text-black dark:border-white/50"
             />
-            <button className="rounded-full border-2 border-gray-200/50 bg-gradient-to-tl from-[#00fff0] to-[#0083fe] px-3 py-2 text-base font-black transition hover:scale-105 hover:border-gray-500 sm:px-6 dark:border-white/50 dark:from-[#8e0e00] dark:to-[#1f1c18] dark:hover:border-white">
+            <button
+              name="intent"
+              value="create task"
+              className="rounded-full border-2 border-gray-200/50 bg-gradient-to-tl from-[#00fff0] to-[#0083fe] px-3 py-2 text-base font-black transition hover:scale-105 hover:border-gray-500 sm:px-6 dark:border-white/50 dark:from-[#8e0e00] dark:to-[#1f1c18] dark:hover:border-white"
+            >
               Add
             </button>
           </fieldset>
-        </Form>
+        </fetcher.Form>
 
         <div className="rounded-3xl border border-gray-200 bg-white/90 px-4 py-2 dark:border-gray-700 dark:bg-gray-900">
-          {tasks.length > 0 ? (
-            <ul>
-              {tasks.map((task) => (
-                <li key={task.id}>{task.description}</li>
-              ))}
-            </ul>
+          {/* {tasks.length > 0 ? (
+            <TodoList todos={tasks as unknown as Item[]} />
           ) : (
             <p className="text-center leading-7">No tasks available</p>
-          )}
+          )} */}
+          <TodoList todos={tasks as unknown as Item[]} view={view as View} />
         </div>
 
         <div className="rounded-3xl border border-gray-200 bg-white/90 px-4 py-2 dark:border-gray-700 dark:bg-gray-900">
-          <div className="flex items-center justify-between gap-4 text-sm">
-            <p className="text-center leading-7">
-              {tasks.length} {tasks.length === 1 ? 'item' : 'items'} left
-            </p>
-            <div className="flex items-center gap-4">
-              <button className="text-red-400 transition hover:text-red-600">
-                Clear Completed
-              </button>
-              <button className="text-red-400 transition hover:text-red-600">
-                Delete All
-              </button>
-            </div>
-          </div>
+          <TodoActions tasks={tasks as unknown as Item[]} />
         </div>
 
         <div className="rounded-3xl border border-gray-200 bg-white/90 px-4 py-2 dark:border-gray-700 dark:bg-gray-900">
-          <div className="flex items-center justify-center gap-12 text-sm">
+          <Form className="flex items-center justify-center gap-12 text-sm">
             <button
               aria-label="View all tasks"
-              className="opacity-50 transition hover:opacity-100"
+              name="view"
+              value="all"
+              className={`transition ${
+                view === "all" ? "font-bold" : "opacity-50 hover:opacity-100"
+              }`}
             >
               All
             </button>
             <button
               aria-label="View active tasks"
-              className="opacity-50 transition hover:opacity-100"
+              name='view'
+              value='active'
+              className={`transition ${
+                view === "active" ? "font-bold" : "opacity-50 hover:opacity-100"
+              }`}
             >
               Active
             </button>
             <button
               aria-label="View completed"
-              className="opacity-50 transition hover:opacity-100"
+              name='view'
+              value='completed'
+              className={`transition ${
+                view === "completed" ? "font-bold" : "opacity-50 hover:opacity-100"
+              }`}
             >
               Completed
             </button>
-          </div>
+          </Form>
         </div>
       </main>
 
       <footer className="mt-12">
         <p className="text-center text-sm leading-loose">
-          Built by{' '}
-          <Link
-            to="https://udohjeremiah.com"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="relative font-medium text-white after:absolute after:-bottom-0.5 after:left-0 after:h-[1px] after:w-0 after:bg-white after:transition-all after:duration-300 hover:after:w-full dark:text-blue-500 dark:after:bg-blue-500"
-          >
-            Udoh
-          </Link>
-          . The source code is available on{' '}
+          Built by Udoh. The source code is available on{' '}
           <Link
             to="https://github.com/udohjeremiah/remix-todo-app"
             target="_blank"
